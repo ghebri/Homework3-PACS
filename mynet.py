@@ -63,7 +63,12 @@ def mynet(progress=True, **kwargs):
     model = MyNet(**kwargs)
 
     state_dict = load_state_dict_from_url(model_urls['alexnet'], progress=progress,)
-    model.load_state_dict(state_dict, strict='False')
+    model.load_state_dict(state_dict, strict=False)
     model.gd[1].weight.data = model.gy[1].weight.data
     model.gd[1].bias.data = model.gy[1].bias.data
+    model.gd[4].weight.data = model.gy[4].weight.data
+    model.gd[4].bias.data = model.gy[4].bias.data
+    model.gd[6].weight.data = model.gy[6].weight.data
+    model.gd[6].bias.data = model.gy[6].bias.data
+
     return model
