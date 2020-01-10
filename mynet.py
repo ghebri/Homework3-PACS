@@ -68,22 +68,20 @@ class MyNet(nn.Module):
         )
 
     def forward(self, x, alpha=None):
-        features = self.gf
+        features = self.gf(x)
         # Flatten the features:
         features = features.view(features.size(0), -1)
         # If we pass alpha, we can assume we are training the discriminator
         if alpha is not None:
             # gradient reversal layer (backward gradients will be reversed)
             reverse_feature = ReverseLayerF.apply(features, alpha)
-            x = reverse_feature(x)
 
-            discriminator_output = self.gd(x)
+            discriminator_output = self.gd(reverse_feature)
             return discriminator_output
         # If we don't pass alpha, we assume we are training with supervision
         else:
-            x = self.gf(x)
 
-            class_outputs = self.gy(x)
+            class_outputs = self.gy(features)
             return class_outputs
 
 
