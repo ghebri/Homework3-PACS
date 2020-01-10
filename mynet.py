@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.hub import load_state_dict_from_url
+from torch.autograd import Function
 
 
 # = ['AlexNet', 'alexnet']
@@ -9,6 +10,22 @@ from torch.hub import load_state_dict_from_url
 model_urls = {
     'alexnet': 'https://download.pytorch.org/models/alexnet-owt-4df8aa71.pth',
 }
+
+
+class ReverseLayerF(Function):
+    # Forwards identity
+    # Sends backward reversed gradients
+    @staticmethod
+    def forward(ctx, x, alpha):
+        ctx.alpha = alpha
+
+        return x.view_as(x)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        output = grad_output.neg() * ctx.alpha
+
+        return output, None
 
 
 class MyNet(nn.Module):
@@ -30,7 +47,7 @@ class MyNet(nn.Module):
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=3, stride=2),
         )
-        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
+        #self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
         self.gy = nn.Sequential(
             nn.Dropout(),
             nn.Linear(256 * 6 * 6, 4096),
@@ -50,12 +67,24 @@ class MyNet(nn.Module):
             nn.Linear(4096, 2),
         )
 
-    def forward(self, x):
-        x = self.features(x)
-        x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        x = self.classifier(x)
-        return x
+    def forward(self, x, alpha=None):
+        features = self.gf
+        # Flatten the features:
+        features = features.view(features.size(0), -1)
+        # If we pass alpha, we can assume we are training the discriminator
+        if alpha is not None:
+            # gradient reversal layer (backward gradients will be reversed)
+            reverse_feature = ReverseLayerF.apply(features, alpha)
+            x = reverse_feature(x)
+
+            discriminator_output = self.gd(x)
+            return discriminator_output
+        # If we don't pass alpha, we assume we are training with supervision
+        else:
+            x = self.gf(x)
+
+            class_outputs = self.gy(x)
+            return class_outputs
 
 
 def mynet(progress=True, **kwargs):
